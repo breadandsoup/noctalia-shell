@@ -67,10 +67,10 @@ PanelWindow {
   }
 
   anchors {
-    top: isFramed || _needsFullscreen || _barPosition !== "bottom"
-    bottom: isFramed || _needsFullscreen || _barPosition !== "top"
-    left: isFramed || _needsFullscreen || _barPosition !== "right"
-    right: isFramed || _needsFullscreen || _barPosition !== "left"
+    top: isFramed || _anchorFullscreen || _barPosition !== "bottom"
+    bottom: isFramed || _anchorFullscreen || _barPosition !== "top"
+    left: isFramed || _anchorFullscreen || _barPosition !== "right"
+    right: isFramed || _anchorFullscreen || _barPosition !== "left"
   }
 
   // Implicit sizes control the non-anchored dimension when collapsed (3 anchors).
@@ -91,6 +91,28 @@ PanelWindow {
   readonly property bool _barIsVertical: _barPosition === "left" || _barPosition === "right"
   property bool _needsFullscreen: isAnyPanelOpen || PanelService.closingPanel !== null || _dimmerAnimating
   property bool _dimmerAnimating: false
+
+  // Deferred fullscreen state for anchors — expands immediately when a panel opens,
+  // but delays collapse by a few frames so the compositor has time to
+  // process the resize atomically, preventing a 1-frame bar background flash.
+  property bool _anchorFullscreen: _needsFullscreen
+  on_NeedsFullscreenChanged: {
+    if (_needsFullscreen) {
+      _collapseTimer.stop();
+      _anchorFullscreen = true;
+    } else {
+      _collapseTimer.restart();
+    }
+  }
+  Timer {
+    id: _collapseTimer
+    interval: 34 // ~2 frames at 60 Hz — enough for the render pipeline to settle
+    onTriggered: {
+      if (!root._needsFullscreen) {
+        root._anchorFullscreen = false;
+      }
+    }
+  }
 
   // Shadow padding for collapsed window — shadow extends beyond bar into the screen
   readonly property real _shadowPadding: (Settings.data.general.enableShadows && !PowerProfileService.noctaliaPerformanceMode) ? Style.shadowBlurMax + Math.max(Math.abs(Style.shadowHorizontalOffset), Math.abs(Style.shadowVerticalOffset)) : 0
